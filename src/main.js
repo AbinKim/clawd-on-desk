@@ -1437,6 +1437,11 @@ registerSessionIpc({
       console.warn("Clawd: failed to pin Session HUD:", result.message);
     }
   },
+  getTokenSummary: () => ({
+    today: _tokenTracker.getDailyTotal(),
+    sessions: _tokenTracker.getAllSessions(),
+    status: _tokenTracker.getStatus(),
+  }),
 });
 
 function createWindow() {

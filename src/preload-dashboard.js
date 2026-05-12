@@ -20,6 +20,7 @@ ipcRenderer.on("dashboard:lang-change", (_event, payload) => {
 contextBridge.exposeInMainWorld("dashboardAPI", {
   getSnapshot: () => ipcRenderer.invoke("dashboard:get-snapshot"),
   getI18n: () => ipcRenderer.invoke("dashboard:get-i18n"),
+  getTokens: () => ipcRenderer.invoke("dashboard:get-tokens"),
   focusSession: (sessionId) => ipcRenderer.send("dashboard:focus-session", sessionId),
   hideSession: (sessionId) => ipcRenderer.invoke("dashboard:hide-session", sessionId),
   setSessionAlias: (payload) => ipcRenderer.invoke("dashboard:set-session-alias", payload),

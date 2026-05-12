@@ -14,6 +14,11 @@ function registerSessionIpc(options = {}) {
   const setSessionAlias = requiredDependency(options.setSessionAlias, "setSessionAlias");
   const showDashboard = requiredDependency(options.showDashboard, "showDashboard");
   const setSessionHudPinned = requiredDependency(options.setSessionHudPinned, "setSessionHudPinned");
+  // Optional: token tracker accessor. When absent, dashboard:get-tokens
+  // returns an empty payload so the renderer can hide its tokens panel.
+  const getTokenSummary = typeof options.getTokenSummary === "function"
+    ? options.getTokenSummary
+    : () => null;
   const disposers = [];
 
   function handle(channel, listener) {
@@ -28,6 +33,10 @@ function registerSessionIpc(options = {}) {
 
   handle("dashboard:get-snapshot", () => getSessionSnapshot());
   handle("dashboard:get-i18n", () => getI18n());
+  handle("dashboard:get-tokens", () => {
+    const summary = getTokenSummary();
+    return summary || null;
+  });
   on("dashboard:focus-session", (_event, sessionId) =>
     focusSession(sessionId, { requestSource: "dashboard" })
   );

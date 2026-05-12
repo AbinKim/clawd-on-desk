@@ -21,6 +21,57 @@ let activeEdit = null;
 const titleEl = document.getElementById("title");
 const countEl = document.getElementById("count");
 const contentEl = document.getElementById("content");
+const tokensPanelEl = document.getElementById("tokens-panel");
+const tokensCostEl = document.getElementById("tokens-cost");
+const tokensCountEl = document.getElementById("tokens-count");
+const tokensDetailEl = document.getElementById("tokens-detail");
+
+function formatTokenInt(n) {
+  const v = Number(n || 0);
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
+  if (v >= 10_000) return `${(v / 1000).toFixed(0)}k`;
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
+  return String(v);
+}
+
+function formatUsd(n) {
+  const v = Number(n || 0);
+  if (v >= 100) return `$${v.toFixed(2)}`;
+  if (v >= 1) return `$${v.toFixed(2)}`;
+  if (v >= 0.01) return `$${v.toFixed(3)}`;
+  return `$${v.toFixed(4)}`;
+}
+
+async function renderTokens() {
+  if (!tokensPanelEl || !window.dashboardAPI || typeof window.dashboardAPI.getTokens !== "function") return;
+  let payload;
+  try {
+    payload = await window.dashboardAPI.getTokens();
+  } catch (err) {
+    return;
+  }
+  const today = payload && payload.today ? payload.today : null;
+  if (!today || !today.message_count) {
+    tokensPanelEl.classList.add("hidden");
+    return;
+  }
+  tokensPanelEl.classList.remove("hidden");
+  if (tokensCostEl) tokensCostEl.textContent = formatUsd(today.cost_usd);
+  if (tokensCountEl) {
+    const msgs = Number(today.message_count || 0);
+    tokensCountEl.textContent = `${msgs} msg${msgs === 1 ? "" : "s"}`;
+  }
+  if (tokensDetailEl) {
+    const parts = [
+      `in <strong>${formatTokenInt(today.input_tokens)}</strong>`,
+      `out <strong>${formatTokenInt(today.output_tokens)}</strong>`,
+      `cache 1h <strong>${formatTokenInt(today.cache_write_1h)}</strong>`,
+      `cache 5m <strong>${formatTokenInt(today.cache_write_5m)}</strong>`,
+      `cache read <strong>${formatTokenInt(today.cache_read_input_tokens)}</strong>`,
+    ];
+    tokensDetailEl.innerHTML = parts.join(" · ");
+  }
+}
 
 function t(key) {
   const dict = i18nPayload && i18nPayload.translations ? i18nPayload.translations : {};
@@ -346,9 +397,11 @@ async function init() {
     if (activeEdit && !snapshotHasSession(snapshot, activeEdit.sessionId)) {
       activeEdit = null;
       render({ force: true });
-      return;
+    } else {
+      render();
     }
-    render();
+    // Token usage updates roughly every hook event — refresh in lockstep.
+    renderTokens();
   });
 
   const [nextI18n, nextSnapshot] = await Promise.all([
@@ -358,6 +411,7 @@ async function init() {
   i18nPayload = nextI18n || i18nPayload;
   snapshot = nextSnapshot || snapshot;
   render();
+  renderTokens();
 
   setInterval(render, 1000);
 }
