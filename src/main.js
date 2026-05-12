@@ -43,6 +43,7 @@ const {
 } = require("./session-focus");
 const { getAllAgents } = require("../agents/registry");
 const { createTokenTracker } = require("./token-tracker");
+const { createNotifier } = require("./notifications");
 
 // ── Autoplay policy: allow sound playback without user gesture ──
 // MUST be set before any BrowserWindow is created (before app.whenReady)
@@ -1096,9 +1097,16 @@ const _tokenTracker = createTokenTracker({
   log: (msg) => console.log(msg),
 });
 
+// ── External notifications (Phase 3: Telegram push) ──
+const _notifier = createNotifier({
+  configPath: path.join(app.getPath("userData"), "notifications.json"),
+  log: (msg) => console.log(msg),
+});
+
 // ── HTTP server — delegated to src/server.js ──
 const _serverCtx = {
   tokenTracker: _tokenTracker,
+  notifier: _notifier,
   get manageClaudeHooksAutomatically() { return manageClaudeHooksAutomatically; },
   get autoStartWithClaude() { return autoStartWithClaude; },
   get doNotDisturb() { return doNotDisturb; },
@@ -1117,7 +1125,19 @@ const _serverCtx = {
   updateSession: agentRuntime.updateSessionFromServer,
   resolvePermissionEntry,
   sendPermissionResponse,
-  showPermissionBubble,
+  // Wrap so every shown permission bubble also fires an external
+  // notification (Phase 3). The wrapper is intentionally cheap and
+  // tolerant of malformed entries — the notifier handles its own
+  // throttling / disabled-channel skips.
+  showPermissionBubble: (permEntry) => {
+    try {
+      const sessionId = permEntry && permEntry.sessionId ? permEntry.sessionId : null;
+      const toolName = permEntry && permEntry.toolName ? permEntry.toolName : null;
+      const cwd = permEntry && permEntry.cwd ? permEntry.cwd : null;
+      _notifier.notify({ type: "permissionRequest", sessionId, toolName, cwd });
+    } catch {}
+    return showPermissionBubble(permEntry);
+  },
   replyOpencodePermission,
   permLog,
 };

@@ -154,6 +154,33 @@ function handleStatePost(req, res, options) {
             }
           });
         }
+        // Phase 3: external notifications. Fires on Stop (task finished
+        // awaiting user) and on error states. Rate-limited inside the
+        // notifier so this is safe to call on every event.
+        if (ctx.notifier && agentId === "claude-code") {
+          if (event === "Stop") {
+            setImmediate(() => {
+              let cost = null;
+              try {
+                const summary = ctx.tokenTracker && ctx.tokenTracker.getSessionSummary(sid);
+                if (summary && summary.total) cost = summary.total.cost_usd;
+              } catch {}
+              try {
+                ctx.notifier.notify({ type: "taskDone", sessionId: sid, cwd, cost });
+              } catch (err) {
+                if (typeof console !== "undefined" && console.warn) {
+                  console.warn("notifier taskDone failed:", err && err.message);
+                }
+              }
+            });
+          } else if (event === "StopFailure" || event === "PostToolUseFailure") {
+            setImmediate(() => {
+              try {
+                ctx.notifier.notify({ type: "error", sessionId: sid, cwd, message: event });
+              } catch {}
+            });
+          }
+        }
         if (svg) {
           const safeSvg = pathApi.basename(svg);
           ctx.setState(state, safeSvg);
