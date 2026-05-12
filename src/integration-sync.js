@@ -253,22 +253,13 @@ function createIntegrationSyncRuntime(options = {}) {
   }
 
   const AGENT_INTEGRATION_SYNCERS = Object.freeze({
-    "gemini-cli": syncGeminiHooks,
     "cursor-agent": syncCursorHooks,
-    codebuddy: syncCodeBuddyHooks,
-    "kiro-cli": syncKiroHooks,
-    "kimi-cli": syncKimiHooks,
     codex: syncCodexHooks,
-    opencode: syncOpencodePlugin,
-    pi: syncPiExtension,
-    openclaw: syncOpenClawPlugin,
-    hermes: syncHermesPlugin,
   });
 
   const AGENT_INTEGRATION_REPAIRERS = Object.freeze({
     ...AGENT_INTEGRATION_SYNCERS,
     codex: repairCodexHooks,
-    openclaw: repairOpenClawPlugin,
   });
 
   function syncIntegrationForAgent(agentId) {
