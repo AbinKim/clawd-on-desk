@@ -42,6 +42,7 @@ const {
   getFocusableLocalHudSessionIds: selectFocusableLocalHudSessionIds,
 } = require("./session-focus");
 const { getAllAgents } = require("../agents/registry");
+const { createTokenTracker } = require("./token-tracker");
 
 // ── Autoplay policy: allow sound playback without user gesture ──
 // MUST be set before any BrowserWindow is created (before app.whenReady)
@@ -1089,8 +1090,15 @@ agentRuntime = createAgentRuntimeMain({
   clearCodexNotifyBubbles: (...args) => clearCodexNotifyBubbles(...args),
 });
 
+// ── Token tracker (Phase 2: per-session token + cost tracking) ──
+const _tokenTracker = createTokenTracker({
+  historyPath: path.join(app.getPath("userData"), "token-history.json"),
+  log: (msg) => console.log(msg),
+});
+
 // ── HTTP server — delegated to src/server.js ──
 const _serverCtx = {
+  tokenTracker: _tokenTracker,
   get manageClaudeHooksAutomatically() { return manageClaudeHooksAutomatically; },
   get autoStartWithClaude() { return autoStartWithClaude; },
   get doNotDisturb() { return doNotDisturb; },

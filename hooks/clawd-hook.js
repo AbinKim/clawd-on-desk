@@ -162,6 +162,9 @@ function buildStateBody(event, payload, resolve) {
     normalizeTitle(payload.session_title) ||
     extractSessionTitleFromTranscript(payload.transcript_path);
   if (sessionTitle) body.session_title = sessionTitle;
+  if (typeof payload.transcript_path === "string" && payload.transcript_path) {
+    body.transcript_path = payload.transcript_path;
+  }
   if (process.env.CLAWD_REMOTE) {
     body.host = readHostPrefix();
   } else {

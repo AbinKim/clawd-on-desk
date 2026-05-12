@@ -89,6 +89,9 @@ function handleStatePost(req, res, options) {
       const permissionSuspect = data.permission_suspect === true;
       const preserveState = data.preserve_state === true;
       const hookSource = typeof data.hook_source === "string" ? data.hook_source : null;
+      const transcriptPath = typeof data.transcript_path === "string" && data.transcript_path
+        ? data.transcript_path
+        : null;
       // Agent gate: user disabled this agent in the settings panel. Drop
       // with 204 so hook scripts get a quick no-op response instead of
       // hanging on our HTTP connection. Still surfaces as a success code
@@ -140,6 +143,17 @@ function handleStatePost(req, res, options) {
           }
         }
         recordRequestHookEvent.acceptedUnlessDnd(shouldDropForDnd());
+        if (transcriptPath && agentId === "claude-code" && ctx.tokenTracker) {
+          setImmediate(() => {
+            try {
+              ctx.tokenTracker.scanTranscript(transcriptPath, sid);
+            } catch (err) {
+              if (typeof console !== "undefined" && console.warn) {
+                console.warn("token-tracker scan failed:", err && err.message);
+              }
+            }
+          });
+        }
         if (svg) {
           const safeSvg = pathApi.basename(svg);
           ctx.setState(state, safeSvg);
