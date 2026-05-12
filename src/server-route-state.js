@@ -158,7 +158,13 @@ function handleStatePost(req, res, options) {
         // awaiting user) and on error states. Rate-limited inside the
         // notifier so this is safe to call on every event.
         if (ctx.notifier && agentId === "claude-code") {
-          if (event === "Stop") {
+          if (event === "UserPromptSubmit") {
+            setImmediate(() => {
+              try {
+                ctx.notifier.notify({ type: "taskStart", sessionId: sid, cwd });
+              } catch {}
+            });
+          } else if (event === "Stop") {
             setImmediate(() => {
               let cost = null;
               try {

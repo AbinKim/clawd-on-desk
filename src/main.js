@@ -44,6 +44,7 @@ const {
 const { getAllAgents } = require("../agents/registry");
 const { createTokenTracker } = require("./token-tracker");
 const { createNotifier } = require("./notifications");
+const { createTts } = require("./tts");
 
 // ── Autoplay policy: allow sound playback without user gesture ──
 // MUST be set before any BrowserWindow is created (before app.whenReady)
@@ -1098,9 +1099,19 @@ const _tokenTracker = createTokenTracker({
 });
 
 // ── External notifications (Phase 3: Telegram push) ──
+// TTS rides the pet window's SpeechSynthesis API. The `win` reference is
+// declared further down via createWindow(); the closure resolves at speak
+// time so we don't crash on early events arriving before the pet is up.
+const _tts = createTts({
+  getPetWebContents: () => (typeof win !== "undefined" && win && !win.isDestroyed())
+    ? win.webContents
+    : null,
+  log: (msg) => console.log(msg),
+});
 const _notifier = createNotifier({
   configPath: path.join(app.getPath("userData"), "notifications.json"),
   log: (msg) => console.log(msg),
+  tts: _tts,
 });
 
 // ── HTTP server — delegated to src/server.js ──

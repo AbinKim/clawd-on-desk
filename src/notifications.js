@@ -22,6 +22,26 @@ const DEFAULT_CONFIG = {
     // a spammy turn loop from blasting 50 messages.
     minIntervalSec: 120,
   },
+  // Phase 5: local TTS via the pet window's SpeechSynthesis API. Short
+  // phrases only ("완료" / "진행중") so it doesn't become a chatty pet.
+  tts: {
+    enabled: false,
+    lang: "ko-KR",
+    rate: 1.05,
+    volume: 0.9,
+    events: {
+      taskStart: true,
+      taskDone: true,
+      permissionRequest: false,
+      error: false,
+    },
+    phrases: {
+      taskStart: "진행중",
+      taskDone: "완료",
+      permissionRequest: "허가",
+      error: "오류",
+    },
+  },
 };
 
 function deepMerge(defaults, override) {
@@ -44,6 +64,9 @@ function deepMerge(defaults, override) {
 function createNotifier(options = {}) {
   const configPath = options.configPath || null;
   const log = typeof options.log === "function" ? options.log : () => {};
+  const tts = options.tts && typeof options.tts.speak === "function"
+    ? options.tts
+    : null;
 
   let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   const lastSent = new Map(); // `${type}:${sessionId}` -> ms
@@ -109,16 +132,38 @@ function createNotifier(options = {}) {
 
   function notify(event) {
     if (!event || typeof event !== "object" || !event.type) return;
+    // ── Telegram channel ──
     const tg = config.telegram || {};
-    if (!tg.enabled) return;
-    if (!tg.botToken || !tg.chatId) return;
-    const eventEnabled = tg.events && tg.events[event.type];
-    if (eventEnabled === false) return;
-    const key = `tg:${event.type}:${event.sessionId || "global"}`;
-    if (rateLimited(key, tg.minIntervalSec || 0)) return;
-    const text = formatTelegramMessage(event);
-    sendTelegramMessage({ botToken: tg.botToken, chatId: tg.chatId, text })
-      .catch((err) => log(`notifications: telegram send failed: ${err.message}`));
+    if (tg.enabled && tg.botToken && tg.chatId) {
+      const tgEventEnabled = tg.events && tg.events[event.type];
+      if (tgEventEnabled !== false) {
+        const key = `tg:${event.type}:${event.sessionId || "global"}`;
+        if (!rateLimited(key, tg.minIntervalSec || 0)) {
+          const text = formatTelegramMessage(event);
+          sendTelegramMessage({ botToken: tg.botToken, chatId: tg.chatId, text })
+            .catch((err) => log(`notifications: telegram send failed: ${err.message}`));
+        }
+      }
+    }
+    // ── TTS channel ──
+    const ttsCfg = config.tts || {};
+    if (tts && ttsCfg.enabled) {
+      const ttsEventEnabled = ttsCfg.events && ttsCfg.events[event.type];
+      if (ttsEventEnabled) {
+        const phrase = ttsCfg.phrases && ttsCfg.phrases[event.type];
+        if (phrase) {
+          try {
+            tts.speak(phrase, {
+              lang: ttsCfg.lang || "ko-KR",
+              rate: ttsCfg.rate,
+              volume: ttsCfg.volume,
+            });
+          } catch (err) {
+            log(`notifications: tts speak failed: ${err && err.message}`);
+          }
+        }
+      }
+    }
   }
 
   writeConfigSkeletonIfMissing();
