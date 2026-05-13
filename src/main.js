@@ -45,6 +45,7 @@ const { getAllAgents } = require("../agents/registry");
 const { createTokenTracker } = require("./token-tracker");
 const { createNotifier } = require("./notifications");
 const { createTts } = require("./tts");
+const { createLoopDetector } = require("./loop-detector");
 
 // ── Autoplay policy: allow sound playback without user gesture ──
 // MUST be set before any BrowserWindow is created (before app.whenReady)
@@ -1114,10 +1115,31 @@ const _notifier = createNotifier({
   tts: _tts,
 });
 
+// ── Loop detector (Phase 6: same-tool-repetition guard) ──
+const _loopDetector = createLoopDetector({
+  onLoopDetected: (payload) => {
+    try {
+      _notifier.notify({
+        type: "stuck",
+        sessionId: payload.sessionId,
+        toolName: payload.toolName,
+        cwd: payload.cwd,
+        successes: payload.successes,
+        failures: payload.failures,
+      });
+      console.log(
+        `loop-detector: stuck session=${payload.sessionId} ` +
+        `tool=${payload.toolName} successes=${payload.successes} failures=${payload.failures}`
+      );
+    } catch {}
+  },
+});
+
 // ── HTTP server — delegated to src/server.js ──
 const _serverCtx = {
   tokenTracker: _tokenTracker,
   notifier: _notifier,
+  loopDetector: _loopDetector,
   get manageClaudeHooksAutomatically() { return manageClaudeHooksAutomatically; },
   get autoStartWithClaude() { return autoStartWithClaude; },
   get doNotDisturb() { return doNotDisturb; },

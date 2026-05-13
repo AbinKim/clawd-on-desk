@@ -17,6 +17,7 @@ const DEFAULT_CONFIG = {
       taskDone: true,
       permissionRequest: true,
       error: true,
+      stuck: true,
     },
     // Minimum seconds between events of the same type per session. Prevents
     // a spammy turn loop from blasting 50 messages.
@@ -34,12 +35,14 @@ const DEFAULT_CONFIG = {
       taskDone: true,
       permissionRequest: false,
       error: false,
+      stuck: true,
     },
     phrases: {
       taskStart: "진행중",
       taskDone: "완료",
       permissionRequest: "허가",
       error: "오류",
+      stuck: "반복",
     },
   },
 };
@@ -124,6 +127,13 @@ function createNotifier(options = {}) {
       case "error": {
         const detail = event.message ? ` · ${escapeHtml(String(event.message).slice(0, 200))}` : "";
         return `⚠️ <b>Clawd</b> error${projectTag}${sidTag}${detail}`;
+      }
+      case "stuck": {
+        const tool = event.toolName ? `<code>${escapeHtml(event.toolName)}</code>` : "?";
+        const succ = Number(event.successes || 0);
+        const fail = Number(event.failures || 0);
+        const stats = `${succ + fail}× (${fail} fail)`;
+        return `🔁 <b>Clawd</b> stuck loop · ${tool} ${stats}${projectTag}${sidTag}`;
       }
       default:
         return `<b>Clawd</b> ${escapeHtml(event.type || "event")}`;

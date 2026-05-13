@@ -157,6 +157,26 @@ function handleStatePost(req, res, options) {
         // Phase 3: external notifications. Fires on Stop (task finished
         // awaiting user) and on error states. Rate-limited inside the
         // notifier so this is safe to call on every event.
+        // Phase 6: same-tool-repetition guard. Feed PostToolUse* into
+        // the loop detector; alerts are emitted via the notifier through
+        // the onLoopDetected callback configured in main.js.
+        if (
+          ctx.loopDetector &&
+          toolInputFingerprint &&
+          (event === "PostToolUse" || event === "PostToolUseFailure")
+        ) {
+          setImmediate(() => {
+            try {
+              ctx.loopDetector.record({
+                sessionId: sid,
+                toolName,
+                fingerprint: toolInputFingerprint,
+                failure: event === "PostToolUseFailure",
+                cwd,
+              });
+            } catch {}
+          });
+        }
         if (ctx.notifier && agentId === "claude-code") {
           if (event === "UserPromptSubmit") {
             setImmediate(() => {
