@@ -1471,6 +1471,7 @@ registerSessionIpc({
   getTokenSummary: () => ({
     today: _tokenTracker.getDailyTotal(),
     sessions: _tokenTracker.getAllSessions(),
+    active: _tokenTracker.getActiveSession(),
     status: _tokenTracker.getStatus(),
   }),
 });

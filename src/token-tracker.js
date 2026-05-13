@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { computeCostUsd } = require("./token-pricing");
+const { computeCostUsd, getContextLimit } = require("./token-pricing");
 
 const PERSIST_DEBOUNCE_MS = 1500;
 const MESSAGE_ID_RING = 256;
@@ -143,6 +143,19 @@ function createTokenTracker(options = {}) {
     }
     addUsageInto(bucket, usage, cost);
     addUsageInto(sess.total, usage, cost);
+    // Latest context size = prompt sent to model on the most recent turn.
+    // = input_tokens + cache_read + cache_creation. This is the "in-window"
+    // size that the user cares about for /compact decisions.
+    const ctxSize =
+      Number(usage?.input_tokens || 0) +
+      Number(usage?.cache_read_input_tokens || 0) +
+      Number(usage?.cache_creation_input_tokens || 0);
+    sess.latest = {
+      modelId,
+      contextSize: ctxSize,
+      contextLimit: getContextLimit(modelId, options.contextLimitOverrides, ctxSize),
+      ts: Date.now(),
+    };
     sess.lastUpdate = Date.now();
 
     const day = todayUtcDate();
@@ -251,7 +264,25 @@ function createTokenTracker(options = {}) {
     if (!s) return null;
     const byModel = {};
     for (const [m, t] of s.byModel) byModel[m] = t;
-    return { sessionId, byModel, total: s.total, lastUpdate: s.lastUpdate };
+    return {
+      sessionId,
+      byModel,
+      total: s.total,
+      lastUpdate: s.lastUpdate,
+      latest: s.latest || null,
+    };
+  }
+
+  function getActiveSession() {
+    let best = null;
+    let bestTs = 0;
+    for (const [sid, s] of sessions) {
+      if ((s.lastUpdate || 0) > bestTs) {
+        bestTs = s.lastUpdate;
+        best = sid;
+      }
+    }
+    return best ? getSessionSummary(best) : null;
   }
 
   function getDailyTotal(day) {
@@ -276,6 +307,7 @@ function createTokenTracker(options = {}) {
   return {
     scanTranscript,
     getSessionSummary,
+    getActiveSession,
     getDailyTotal,
     getAllSessions,
     getStatus,

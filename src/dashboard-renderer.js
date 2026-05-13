@@ -25,6 +25,10 @@ const tokensPanelEl = document.getElementById("tokens-panel");
 const tokensCostEl = document.getElementById("tokens-cost");
 const tokensCountEl = document.getElementById("tokens-count");
 const tokensDetailEl = document.getElementById("tokens-detail");
+const contextGaugeEl = document.getElementById("context-gauge");
+const contextPctEl = document.getElementById("context-pct");
+const contextRatioEl = document.getElementById("context-ratio");
+const contextFillEl = document.getElementById("context-fill");
 
 function formatTokenInt(n) {
   const v = Number(n || 0);
@@ -70,6 +74,30 @@ async function renderTokens() {
       `cache read <strong>${formatTokenInt(today.cache_read_input_tokens)}</strong>`,
     ];
     tokensDetailEl.innerHTML = parts.join(" · ");
+  }
+  renderContextGauge(payload);
+}
+
+function renderContextGauge(payload) {
+  if (!contextGaugeEl) return;
+  const latest = payload && payload.active && payload.active.latest;
+  if (!latest || !latest.contextSize || !latest.contextLimit) {
+    contextGaugeEl.classList.add("hidden");
+    return;
+  }
+  const size = Number(latest.contextSize) || 0;
+  const limit = Number(latest.contextLimit) || 1;
+  const pct = Math.max(0, Math.min(100, (size / limit) * 100));
+  contextGaugeEl.classList.remove("hidden");
+  if (contextPctEl) contextPctEl.textContent = `${pct.toFixed(1)}%`;
+  if (contextRatioEl) {
+    contextRatioEl.textContent = `${formatTokenInt(size)} / ${formatTokenInt(limit)}`;
+  }
+  if (contextFillEl) {
+    contextFillEl.style.width = `${pct}%`;
+    contextFillEl.classList.remove("warn", "crit");
+    if (pct >= 90) contextFillEl.classList.add("crit");
+    else if (pct >= 70) contextFillEl.classList.add("warn");
   }
 }
 

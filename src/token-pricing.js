@@ -84,8 +84,56 @@ function computeCostUsd(usage, modelId, overrides) {
   return Math.round(cost * 1_000_000) / 1_000_000; // 6dp
 }
 
+// ── Per-model context window limit (tokens). Defaults follow Anthropic's
+// "headline" tier for each family. Opus 4.7 ships with 1M context as the
+// public maximum; Sonnet/Haiku 4.x are still 200K. Users on a smaller
+// tier (e.g. legacy 200K Opus accounts) can override via the optional
+// overrides argument — getContextLimit also auto-bumps if a measured
+// turn exceeds the configured limit, so the gauge never lies.
+const DEFAULT_CONTEXT_LIMITS = {
+  "claude-opus-4-7": 1_000_000,
+  "claude-opus-4-6": 200_000,
+  "claude-sonnet-4-6": 200_000,
+  "claude-sonnet-4-5": 200_000,
+  "claude-haiku-4-5": 200_000,
+};
+
+const CONTEXT_FAMILY_FALLBACK = [
+  { prefix: "claude-opus-4-7", limit: 1_000_000 },
+  { prefix: "claude-opus-4", limit: 200_000 },
+  { prefix: "claude-sonnet-4", limit: 200_000 },
+  { prefix: "claude-haiku-4", limit: 200_000 },
+];
+
+function getContextLimit(modelId, overrides, measuredSize) {
+  let base = 200_000;
+  if (modelId && typeof modelId === "string") {
+    const table = overrides && typeof overrides === "object"
+      ? { ...DEFAULT_CONTEXT_LIMITS, ...overrides }
+      : DEFAULT_CONTEXT_LIMITS;
+    if (table[modelId]) base = table[modelId];
+    else {
+      for (const entry of CONTEXT_FAMILY_FALLBACK) {
+        if (modelId.startsWith(entry.prefix)) { base = entry.limit; break; }
+      }
+    }
+  }
+  // Auto-bump to the next standard tier if we observe an actual turn
+  // larger than our table. Avoids the gauge showing >100% when the user
+  // is on a higher tier than we knew about.
+  const measured = Number(measuredSize) || 0;
+  if (measured > base) {
+    if (measured <= 1_000_000) return 1_000_000;
+    if (measured <= 2_000_000) return 2_000_000;
+    return measured;
+  }
+  return base;
+}
+
 module.exports = {
   DEFAULT_PRICING,
+  DEFAULT_CONTEXT_LIMITS,
   getPricing,
+  getContextLimit,
   computeCostUsd,
 };
