@@ -359,6 +359,29 @@ function createCard(session, now) {
     window.dashboardAPI.focusSession(session.id);
   });
   actions.appendChild(button);
+  // Phase 7: Resume button — opens a fresh terminal at session.cwd and
+  // invokes the agent's --resume flag with the session id. Available
+  // only for the 3 supported agents with a known cwd.
+  const supportedResume = new Set(["claude-code", "codex", "cursor-agent"]);
+  if (session.cwd && supportedResume.has(session.agentId) && typeof window.dashboardAPI.resumeSession === "function") {
+    const resumeBtn = document.createElement("button");
+    resumeBtn.type = "button";
+    resumeBtn.textContent = "Resume";
+    resumeBtn.className = "resume-button";
+    resumeBtn.title = `Resume in new terminal — ${session.cwd}`;
+    resumeBtn.addEventListener("click", async () => {
+      resumeBtn.disabled = true;
+      try {
+        const result = await window.dashboardAPI.resumeSession(session.id);
+        if (result && result.status === "error") {
+          console.warn("resumeSession failed:", result.reason);
+        }
+      } finally {
+        setTimeout(() => { resumeBtn.disabled = false; }, 800);
+      }
+    });
+    actions.appendChild(resumeBtn);
+  }
   card.appendChild(actions);
 
   return card;

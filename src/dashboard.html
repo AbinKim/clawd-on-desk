@@ -241,6 +241,18 @@ h1 {
 .actions {
   display: flex;
   justify-content: flex-end;
+  gap: 6px;
+}
+
+.resume-button {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.resume-button:hover:not(:disabled) {
+  background: var(--surface-alt);
+  color: var(--accent);
 }
 
 button {

@@ -14,6 +14,10 @@ function registerSessionIpc(options = {}) {
   const setSessionAlias = requiredDependency(options.setSessionAlias, "setSessionAlias");
   const showDashboard = requiredDependency(options.showDashboard, "showDashboard");
   const setSessionHudPinned = requiredDependency(options.setSessionHudPinned, "setSessionHudPinned");
+  // Optional Phase 7: resume a past session in a fresh terminal.
+  const resumeSession = typeof options.resumeSession === "function"
+    ? options.resumeSession
+    : null;
   // Optional: token tracker accessor. When absent, dashboard:get-tokens
   // returns an empty payload so the renderer can hide its tokens panel.
   const getTokenSummary = typeof options.getTokenSummary === "function"
@@ -42,6 +46,14 @@ function registerSessionIpc(options = {}) {
   );
   handle("dashboard:hide-session", (_event, sessionId) => hideSession(sessionId));
   handle("dashboard:set-session-alias", (_event, payload) => setSessionAlias(payload));
+  handle("dashboard:resume-session", (_event, sessionId) => {
+    if (!resumeSession) return { status: "error", reason: "not-supported" };
+    try {
+      return resumeSession(sessionId) || { status: "ok" };
+    } catch (err) {
+      return { status: "error", reason: err && err.message };
+    }
+  });
 
   handle("session-hud:get-i18n", () => getI18n());
   on("session-hud:focus-session", (_event, sessionId) =>

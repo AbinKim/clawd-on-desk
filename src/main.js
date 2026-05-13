@@ -1470,6 +1470,60 @@ registerSettingsIpc({
   aboutHeroSvgPath: path.join(__dirname, "..", "assets", "svg", "clawd-about-hero.svg"),
 });
 
+// Phase 7: resume a past session by spawning a fresh terminal at the
+// session's cwd and invoking the appropriate agent CLI with --resume.
+// Today only Claude Code is wired through; other agents fall through to
+// a no-op success so the UI can still trigger the call without errors.
+function resumeSessionInNewTerminal(sessionId) {
+  if (!sessionId) return { status: "error", reason: "missing-session-id" };
+  const snapshot = _state.buildSessionSnapshot();
+  const session = (snapshot.sessions || []).find((s) => s && s.id === sessionId);
+  if (!session) return { status: "error", reason: "session-not-found" };
+  const cwd = typeof session.cwd === "string" && session.cwd ? session.cwd : null;
+  if (!cwd) return { status: "error", reason: "no-cwd" };
+  const agentId = session.agentId || "claude-code";
+  const isWinPlatform = process.platform === "win32";
+  const isMacPlatform = process.platform === "darwin";
+  let cliCommand;
+  if (agentId === "claude-code") cliCommand = `claude --resume ${sessionId}`;
+  else if (agentId === "codex") cliCommand = `codex --resume ${sessionId}`;
+  else if (agentId === "cursor-agent") cliCommand = `cursor-agent --resume ${sessionId}`;
+  else return { status: "error", reason: `unsupported-agent:${agentId}` };
+  const { spawn } = require("child_process");
+  try {
+    if (isWinPlatform) {
+      // `start` returns immediately; cmd /K leaves the window open after
+      // the command finishes so the user can keep typing.
+      spawn(
+        "cmd",
+        ["/c", "start", "", "cmd", "/K", `cd /d "${cwd}" && ${cliCommand}`],
+        { detached: true, stdio: "ignore", windowsHide: false }
+      ).unref();
+    } else if (isMacPlatform) {
+      const apple = `tell application "Terminal" to do script "cd ${JSON.stringify(cwd)} && ${cliCommand}"`;
+      spawn("osascript", ["-e", apple], { detached: true, stdio: "ignore" }).unref();
+    } else {
+      // Best-effort Linux fallback. gnome-terminal exists on Ubuntu; xterm
+      // is the universal fallback.
+      const child = spawn(
+        "gnome-terminal",
+        ["--working-directory", cwd, "--", "bash", "-c", `${cliCommand}; exec bash`],
+        { detached: true, stdio: "ignore" }
+      );
+      child.on("error", () => {
+        spawn("xterm", ["-e", `cd '${cwd}' && ${cliCommand}; exec bash`], {
+          detached: true,
+          stdio: "ignore",
+        }).unref();
+      });
+      child.unref();
+    }
+    return { status: "ok", agentId, cwd };
+  } catch (err) {
+    return { status: "error", reason: err && err.message };
+  }
+}
+
 registerSessionIpc({
   ipcMain,
   getSessionSnapshot: () => _state.buildSessionSnapshot(),
@@ -1478,6 +1532,7 @@ registerSessionIpc({
   hideSession: (sessionId) => hideDashboardSession(sessionId),
   setSessionAlias: (payload) => _settingsController.applyCommand("setSessionAlias", payload),
   showDashboard: () => showDashboard(),
+  resumeSession: (sessionId) => resumeSessionInNewTerminal(sessionId),
   setSessionHudPinned: (value) => {
     const result = _settingsController.applyUpdate("sessionHudPinned", !!value);
     if (result && typeof result.then === "function") {
